@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-class ProcessData:
+class PreProcessData:
     train = pd.read_csv('../data/train.csv')
     test = pd.read_csv('../data/test.csv')
     sample_submission = pd.read_csv('../data/sample_submission.csv')
@@ -52,13 +52,35 @@ class ProcessData:
         clean_dic = self.handle_nans(checked_multi_dic)
         return clean_dic
     
+class PostProcessData:
+
+    def verify_index(self, dic):
+        faulty_df = []
+        for df in dic.values():
+            start_date = df.index.min()
+            end_date = df.index.max()
+            complete_date_range = pd.date_range(start=start_date, end=end_date, freq=df.index.freq)
+            is_index_complete = (df.index == complete_date_range).all()
+            if not is_index_complete:
+                faulty_df.append(df)
+        print(f'Number of dataframes with uncomplete index: ', len(faulty_df))
+
+    def train_test_split(self, df, steps):
+        data_train = df[:-steps]
+        data_test  = df[-steps:]
+        print(
+            f"Train dates : {data_train.index.min()} --- "
+            f"{data_train.index.max()}  (n={len(data_train)})"
+        )
+        print(
+            f"Test dates  : {data_test.index.min()} --- "
+            f"{data_test.index.max()}  (n={len(data_test)})"
+        )
+        return data_train, data_test
+    
     def rebuild_dataframe(self, dic):
         df = pd.concat(dic.values())
         sorted_df = df.sort_values('id')
         return sorted_df
-    
-    
-
-
 
 
