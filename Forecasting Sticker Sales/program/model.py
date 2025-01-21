@@ -8,7 +8,8 @@ from skforecast.recursive import ForecasterRecursive
 from skforecast.recursive import ForecasterSarimax
 from sklearn.ensemble import RandomForestRegressor
 from skforecast.model_selection import TimeSeriesFold
-from skforecast.model_selection import grid_search_forecaster
+from skforecast.model_selection import grid_search_forecaster, grid_search_sarimax
+from skforecast.sarimax import Sarimax
 from skforecast.exceptions import LongTrainingWarning
 
 from skforecast.direct import ForecasterDirect
@@ -35,37 +36,38 @@ steps = 562
 
 class Forecast:
 
-    def create_random_forest_regresor_forecaster(self, df, y_column, steps):
+    def create_random_forest_regresor_forecaster(self, steps):
         forecaster = ForecasterRecursive(
                         regressor = RandomForestRegressor(random_state=123),
-                        lags      = 6
+                        lags      = steps
                     )
         return forecaster
     
-    def create_lgbm_regressor_forecaster(self, df, y_column, steps):
+    def create_lgbm_regressor_forecaster(self, steps):
         forecaster = ForecasterRecursive(
                         regressor = LGBMRegressor(random_state=123),
-                        lags      = 6
+                        lags      = steps
                     )
         return forecaster
     
-    def create_svr_regresor_forecaster(self, df, y_column, steps):
+    def create_svr_regresor_forecaster(self, steps):
         forecaster = ForecasterRecursive(
                     regressor = SVR(kernel='rbf', C=0.5, epsilon=0.1),
-                    lags      = 6
+                    lags      = steps
                 )
         return forecaster
 
-    def create_sarimax_forecaster(self, df, y_column, steps):
-        forecaster = ForecasterRecursive(
-                    regressor = ForecasterSarimax(kernel='rbf', C=0.5, epsilon=0.1),
-                    lags      = 6
-                )
+    def create_sarimax_forecaster(self):
+        forecaster = ForecasterSarimax(
+                    regressor = Sarimax(
+                        order   = (1, 1, 1),
+                        seasonal_order=(1, 1, 1, 12))
+                        )
         return forecaster
     
-    def hyperparameter_grid_earch(self, forecaster, df, y_column, steps):
+    def hyperparameter_grid_search_lgbm(self, forecaster, df, y_column, steps):
         cv = TimeSeriesFold(
-                steps              = 36, 
+                steps              = steps, 
                 initial_train_size = int(len(df) * 0.5),
                 fixed_train_size   = False,
                 refit              = False,
@@ -73,7 +75,7 @@ class Forecast:
 
         param_grid = {'alpha': np.logspace(-5, 5, 10)}
 
-        lags_grid = [5, 12, 20]
+        lags_grid = [steps]
 
         results_grid = grid_search_forecaster(
                             forecaster         = forecaster,
@@ -86,6 +88,97 @@ class Forecast:
                             n_jobs             = 'auto',
                             verbose            = False
                         )
+
+        return forecaster
+    
+    def hyperparameter_grid_search_forest(self, forecaster, df, y_column, steps):
+        cv = TimeSeriesFold(
+                steps              = steps, 
+                initial_train_size = int(len(df) * 0.5),
+                fixed_train_size   = False,
+                refit              = False,
+        )
+
+        param_grid = {
+            'n_estimators': [100, 200, 300],
+            'max_depth': [5, 10, None],
+            'min_samples_split': [2, 5]
+        }
+
+        lags_grid = [562]
+
+        results_grid = grid_search_forecaster(
+                            forecaster         = forecaster,
+                            y                  = df[y_column],
+                            cv                 = cv,
+                            param_grid         = param_grid,
+                            lags_grid          = lags_grid,
+                            metric             = 'mean_squared_error',
+                            return_best        = True,
+                            n_jobs             = 'auto',
+                            verbose            = False
+                        )
+
+        return forecaster
+    
+    def hyperparameter_grid_search_svr(self, forecaster, df, y_column, steps):
+        cv = TimeSeriesFold(
+                steps              = steps, 
+                initial_train_size = int(len(df) * 0.5),
+                fixed_train_size   = False,
+                refit              = False,
+        )
+
+        param_grid = {
+            'C': [0.1, 1, 10, 100],           # Regularization parameter
+            'epsilon': [0.01, 0.1, 0.5, 1],   # Epsilon in the epsilon-SVR model
+            'kernel': ['linear', 'rbf'],      # Kernel type
+            'gamma': ['scale', 'auto']        # Kernel coefficient
+        }
+
+        lags_grid = [562]
+
+        results_grid = grid_search_forecaster(
+                            forecaster         = forecaster,
+                            y                  = df[y_column],
+                            cv                 = cv,
+                            param_grid         = param_grid,
+                            lags_grid          = lags_grid,
+                            metric             = 'mean_squared_error',
+                            return_best        = True,
+                            n_jobs             = 'auto',
+                            verbose            = False
+                        )
+        
+        return forecaster
+    
+    def hyperparameter_grid_search_sarimax(self, forecaster, df, y_column, steps):
+        cv = TimeSeriesFold(
+                steps              = steps, 
+                initial_train_size = int(len(df) * 0.5),
+                fixed_train_size   = False,
+                refit              = True,
+        )
+
+        param_grid = {
+            'order': [(0, 1, 0), (0, 1, 1), (1, 1, 0), (1, 1, 1), (2, 1, 1)],
+            'seasonal_order': [(0, 0, 0, 0), (0, 1, 0, 12), (1, 1, 1, 12)],
+            'trend': [None, 'n', 'c']
+        }
+        
+        results_grid = grid_search_sarimax(
+                   forecaster            = forecaster,
+                   y                     = df[y_column],
+                   cv                    = cv,
+                   param_grid            = param_grid,
+                   metric                = 'mean_absolute_error',
+                   return_best           = False,
+                   n_jobs                = 'auto',
+                   suppress_warnings_fit = True,
+                   verbose               = False,
+                   show_progress         = True
+        )       
+        
         return forecaster
 
 class FitPredict:
