@@ -57,7 +57,7 @@ class Forecast:
                 )
         return forecaster
 
-    def create_sarimax_forecaster(self):
+    def create_sarimax_forecaster(self, steps):
         forecaster = ForecasterSarimax(
                     regressor = Sarimax(
                         order   = (1, 1, 1),

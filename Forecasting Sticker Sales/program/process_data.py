@@ -6,8 +6,8 @@ class PreProcessData:
     test = pd.read_csv('../data/test.csv')
     sample_submission = pd.read_csv('../data/sample_submission.csv')
 
-    def __init__(self, df):
-        self.clean_dic = self.process_dataframe(df)
+    def __init__(self, df_train, df_test):
+        self.clean_dic = self.process_dataframe(df_train, df_test)
 
     def set_time_index(self, df):
         df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
@@ -15,15 +15,23 @@ class PreProcessData:
         df = df.sort_index()
         return df
 
-    def make_multiseries_dictionary(self, df):
-        grouped = df.groupby(['country','store','product'])
-        grouped_dataframes = {key: group for key, group in grouped}
-        return grouped_dataframes
+    def make_multiseries_dictionary(self, df1, df2):
+        grouped_df1 = df1.groupby(['country', 'store', 'product'])
+        grouped_df2 = df2.groupby(['country', 'store', 'product'])
+
+        combined_dict = {
+            key: [group1, grouped_df2.get_group(key)]
+            for key, group1 in grouped_df1
+            if key in grouped_df2.groups 
+        }
+        return combined_dict
     
     def check_index_dataframes(self, dic):
         for key in dic.keys():
-            dic[key] = dic[key].asfreq('D')
-            dic[key] = dic[key].sort_index()
+            dic[key][0] = dic[key][0].asfreq('D')
+            dic[key][0] = dic[key][0].sort_index()
+            dic[key][1] = dic[key][1].asfreq('D')
+            dic[key][1] = dic[key][1].sort_index()
         return dic
 
     def fill_with_mean_neighbor(self, series):
@@ -38,16 +46,18 @@ class PreProcessData:
         return series
     
     def handle_nans(self, multi_dict):
-        for group in multi_dict.values():
-            if group.isnull().any(axis=1).sum() == len(group):
-                group.fillna(0, inplace=True)
-            elif group.isnull().any(axis=1).sum() > 0:
-                group.apply(self.fill_with_mean_neighbor)
+        for lst in multi_dict.values():
+            for group in lst:
+                if group.isnull().any(axis=1).sum() == len(group):
+                    group.fillna(0, inplace=True)
+                elif group.isnull().any(axis=1).sum() > 0:
+                    group.apply(self.fill_with_mean_neighbor)
         return multi_dict
     
-    def process_dataframe(self, df):
-        time_index_df = self.set_time_index(df)
-        multi_dic = self.make_multiseries_dictionary(time_index_df)
+    def process_dataframe(self, df_train, df_test):
+        train_index_df = self.set_time_index(df_train)
+        test_index_df = self.set_time_index(df_test)
+        multi_dic = self.make_multiseries_dictionary(train_index_df, test_index_df)
         checked_multi_dic = self.check_index_dataframes(multi_dic)
         clean_dic = self.handle_nans(checked_multi_dic)
         return clean_dic
@@ -56,13 +66,14 @@ class PostProcessData:
 
     def verify_index(self, dic):
         faulty_df = []
-        for df in dic.values():
-            start_date = df.index.min()
-            end_date = df.index.max()
-            complete_date_range = pd.date_range(start=start_date, end=end_date, freq=df.index.freq)
-            is_index_complete = (df.index == complete_date_range).all()
-            if not is_index_complete:
-                faulty_df.append(df)
+        for lst in dic.values():
+            for df in lst:
+                start_date = df.index.min()
+                end_date = df.index.max()
+                complete_date_range = pd.date_range(start=start_date, end=end_date, freq=df.index.freq)
+                is_index_complete = (df.index == complete_date_range).all()
+                if not is_index_complete:
+                    faulty_df.append(df)
         print(f'Number of dataframes with uncomplete index: ', len(faulty_df))
 
     def train_test_split(self, df, steps):
