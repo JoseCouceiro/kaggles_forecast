@@ -7,7 +7,8 @@ class PreProcessData:
     sample_submission = pd.read_csv('../data/sample_submission.csv')
 
     def __init__(self, df_train, df_test):
-        self.clean_dic = self.process_dataframe(df_train, df_test)
+        self.date_index_dfs = self.process_dataframe(df_train, df_test)
+        self.clean_dic = self.get_dic(self.date_index_dfs)
 
     def set_time_index(self, df):
         df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
@@ -57,7 +58,10 @@ class PreProcessData:
     def process_dataframe(self, df_train, df_test):
         train_index_df = self.set_time_index(df_train)
         test_index_df = self.set_time_index(df_test)
-        multi_dic = self.make_multiseries_dictionary(train_index_df, test_index_df)
+        return train_index_df, test_index_df
+    
+    def get_dic(self, tup):
+        multi_dic = self.make_multiseries_dictionary(tup[0], tup[1])
         checked_multi_dic = self.check_index_dataframes(multi_dic)
         clean_dic = self.handle_nans(checked_multi_dic)
         return clean_dic
