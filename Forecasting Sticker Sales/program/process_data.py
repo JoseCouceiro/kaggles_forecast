@@ -97,5 +97,13 @@ class PostProcessData:
         df = pd.concat(dic.values())
         sorted_df = df.sort_values('id')
         return sorted_df
+    
+class ProcessMultiseries:
+
+    def group_df(self, grouped_dic):
+        reorg_df = pd.DataFrame({'_'.join(key):df['num_sold'] for key, df in grouped_dic.items()}) 
+        return reorg_df
+    
+    
 
 

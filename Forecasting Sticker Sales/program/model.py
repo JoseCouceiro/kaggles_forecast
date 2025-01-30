@@ -11,8 +11,9 @@ from skforecast.model_selection import TimeSeriesFold
 from skforecast.model_selection import grid_search_forecaster, grid_search_sarimax
 from skforecast.sarimax import Sarimax
 from skforecast.exceptions import LongTrainingWarning
-
 from skforecast.direct import ForecasterDirect
+from skforecast.recursive._forecaster_recursive_multiseries import ForecasterRecursiveMultiSeries
+
 from lightgbm import LGBMRegressor
 from sklearn.svm import SVR
 from sklearn.linear_model import Ridge
@@ -181,6 +182,25 @@ class Forecast:
         
         return forecaster
 
+class Multiseries:
+
+    def create_fit_multi_forecaster(self, steps, df):
+        forecaster = ForecasterRecursiveMultiSeries(
+                 regressor          = RandomForestRegressor(random_state=123),
+                 lags               = steps,
+                 transformer_series = StandardScaler(),
+                 transformer_exog   = None,
+                 weight_func        = None,
+                 series_weights     = None
+             )
+        
+        forecaster.fit(series=df)
+        return forecaster
+
+    def predict_multi(self, steps, forecaster, level):
+        prediction_level = forecaster.predict(steps=steps, levels=level)
+        return prediction_level     
+        
 class FitPredict:
 
     def fit_forecaster(self, forecaster, df, y_column):
